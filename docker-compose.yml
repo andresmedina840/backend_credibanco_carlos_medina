@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      args:
+        JAR_FILE: target/*.jar
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      JAVA_OPTS: "-XX:MaxRAM=512m -XX:+UseSerialGC -Xss512k -Dspring.profiles.active=prod"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app-network-credibanco
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_container
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_INNODB_BUFFER_POOL_SIZE: 48M
+      MYSQL_INNODB_LOG_FILE_SIZE: 24M
+      TZ: ${TZ}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d/my-custom.cnf:/etc/mysql/conf.d/my-custom.cnf
+    networks:
+      - app-network-credibanco
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 40s
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=100
+      - --innodb-flush-method=O_DIRECT
+      - --skip-name-resolve
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+          cpus: '0.3'
+
+volumes:
+  mysql_data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+networks:
+  app-network-credibanco:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
