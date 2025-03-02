@@ -21,24 +21,31 @@ jobs:
     - name: Build with Maven
       run: mvn clean package -DskipTests -T 1C -Dmaven.compiler.release=21
 
-    - name: Verify artifacts
+    - name: Verify build artifacts
       run: |
-        echo "=== Archivos en target/ ==="
-        ls -l target/credibanco.jar || echo "❌ JAR no generado"
-        echo "=== Archivos compose ==="
-        ls -l docker-compose*.yml || echo "❌ Faltan archivos compose"
-        echo "=== Variables de entorno ==="
-        ls -l .env || echo "❌ Faltan variables"
+        ls -l target/credibanco.jar || (echo "❌ ERROR: No se generó el JAR" && exit 1)
+        ls -l docker-compose-db.yml || (echo "❌ ERROR: No se encuentra docker-compose-db.yml" && exit 1)
+        ls -l docker-compose-app.yml || (echo "❌ ERROR: No se encuentra docker-compose-app.yml" && exit 1)
+        ls -l .env || (echo "❌ ERROR: No se encuentra .env" && exit 1)
 
     - name: Build Docker image
       run: docker build -t backend-credibanco . --build-arg JAR_FILE=target/credibanco.jar
 
+    - name: Verify Docker image
+      run: |
+        bash -c "docker images | grep backend-credibanco || { echo '❌ ERROR: No se generó la imagen Docker'; exit 1; }"
+
     - name: Compress image
       run: docker save backend-credibanco | gzip > image.tar.gz
+
+    - name: Verify compressed image
+      run: |
+        bash -c "ls -l image.tar.gz || { echo '❌ ERROR: No se generó image.tar.gz'; exit 1; }"
 
     - name: Transfer files to EC2
       uses: appleboy/scp-action@v0.1.3
       with:
+        debug: true
         host: ${{ secrets.AWS_EC2_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -50,7 +57,6 @@ jobs:
           image.tar.gz
         target: "/home/ubuntu/app"
         overwrite: true
-        debug: true
 
     - name: Deploy on EC2
       uses: appleboy/ssh-action@v0.1.3
@@ -62,5 +68,5 @@ jobs:
           cd /home/ubuntu/app
           docker load -i image.tar.gz
           docker-compose -f docker-compose-db.yml up -d
-          sleep 25  # Esperar inicialización de MySQL
+          sleep 20  # Esperar inicialización de MySQL
           docker-compose -f docker-compose-app.yml up -d
