@@ -21,8 +21,14 @@ jobs:
     - name: Build with Maven
       run: mvn clean package -DskipTests -T 1C -Dmaven.compiler.release=21
 
-    - name: Verify JAR
-      run: ls -l target/credibanco.jar  # Verificación explícita
+    - name: Verify artifacts
+      run: |
+        echo "=== Archivos en target/ ==="
+        ls -l target/credibanco.jar || echo "❌ JAR no generado"
+        echo "=== Archivos compose ==="
+        ls -l docker-compose*.yml || echo "❌ Faltan archivos compose"
+        echo "=== Variables de entorno ==="
+        ls -l .env || echo "❌ Faltan variables"
 
     - name: Build Docker image
       run: docker build -t backend-credibanco . --build-arg JAR_FILE=target/credibanco.jar
@@ -44,6 +50,7 @@ jobs:
           image.tar.gz
         target: "/home/ubuntu/app"
         overwrite: true
+        debug: true
 
     - name: Deploy on EC2
       uses: appleboy/ssh-action@v0.1.3
@@ -55,5 +62,5 @@ jobs:
           cd /home/ubuntu/app
           docker load -i image.tar.gz
           docker-compose -f docker-compose-db.yml up -d
-          sleep 20  # Esperar inicialización de MySQL
+          sleep 25  # Esperar inicialización de MySQL
           docker-compose -f docker-compose-app.yml up -d
