@@ -21,17 +21,18 @@ jobs:
     - name: Build with Maven
       run: |
         mvn clean package -DskipTests -T 1C -Dmaven.compiler.release=21
-        mkdir -p target  # Asegurar que el directorio existe
+        touch .env  # Crear archivo .env vacío si no existe
 
     - name: Verify build artifacts
       run: |
-        ls -l target/*.jar || echo "No JAR found"
-        ls -l docker-compose*.yml || echo "No compose files"
+        ls -l target/*.jar || echo "⚠️ No se generó el JAR"
+        ls -l docker-compose*.yml || echo "⚠️ Faltan archivos compose"
+        ls -l .env || echo "⚠️ Faltan variables de entorno"
 
     - name: Build Docker image
       run: |
         docker build -t backend-credibanco . \
-        --build-arg JAR_FILE=target/*.jar
+        --build-arg JAR_FILE=target/credibanco.jar
 
     - name: Compress Docker image
       run: docker save backend-credibanco | gzip > image.tar.gz
@@ -44,7 +45,7 @@ jobs:
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         source: |
-          target/*.jar
+          target/credibanco.jar
           docker-compose-db.yml
           docker-compose-app.yml
           .env
