@@ -1,4 +1,3 @@
-# docker-compose-app.yml
 services:
   backend:
     build: .
@@ -8,9 +7,9 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql_container_credibanco:3306/${MYSQL_DATABASE}?useSSL=false
-      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       JAVA_OPTS: "-XX:MaxRAM=400m -XX:+UseSerialGC -Xss256k"
     deploy:
       resources:
