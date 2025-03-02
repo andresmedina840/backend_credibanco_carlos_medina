@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -19,12 +19,17 @@ jobs:
         distribution: 'temurin'
 
     - name: Build with Maven
-      run: mvn clean package -DskipTests -T 1C -Dmaven.compiler.release=21
+      run: |
+        mvn clean package -DskipTests -T 1C \
+        -Dmaven.compiler.release=21 \
+        -Dspring-boot.repackage.skip=true
 
     - name: Build Docker image
-      run: docker build -t backend-credibanco .
+      run: |
+        docker build -t backend-credibanco . \
+        --build-arg JAR_FILE=target/*.jar
 
-    - name: Compress image
+    - name: Compress Docker image
       run: docker save backend-credibanco | gzip > image.tar.gz
 
     - name: Transfer files to EC2
@@ -33,8 +38,13 @@ jobs:
         host: ${{ secrets.AWS_EC2_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: "target/*.jar,docker-compose*.yml,.env,image.tar.gz"
+        source: |
+          target/*.jar
+          docker-compose*.yml
+          .env
+          image.tar.gz
         target: "/home/ubuntu/app"
+        strip_components: 1
 
     - name: Deploy on EC2
       uses: appleboy/ssh-action@v0.1.3
@@ -42,9 +52,10 @@ jobs:
         host: ${{ secrets.AWS_EC2_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        debug: true
         script: |
           cd /home/ubuntu/app
           docker load -i image.tar.gz
-          docker-compose -f docker-compose-db.yml up -d
+          docker-compose -f docker-compose-db.yml up -d --force-recreate
+          sleep 15  # Esperar inicialización de MySQL
           docker-compose -f docker-compose-app.yml up -d
+          docker system prune -af  # Limpiar recursos no usados
