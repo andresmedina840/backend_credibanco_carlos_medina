@@ -33,7 +33,7 @@ jobs:
         host: ${{ secrets.AWS_EC2_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: "image.tar.gz,docker-compose*.yml,.env"
+        source: "target/*.jar,docker-compose*.yml,.env,image.tar.gz"
         target: "/home/ubuntu/app"
 
     - name: Deploy on EC2
