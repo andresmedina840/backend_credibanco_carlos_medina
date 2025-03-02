@@ -4,12 +4,10 @@ on:
   push:
     branches: [ main ]
 
-env:
-  DOCKER_IMAGE: tu_usuario_docker/backend-credibanco
-
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -21,38 +19,31 @@ jobs:
         distribution: 'temurin'
 
     - name: Build with Maven
-      run: mvn clean package -DskipTests
+      run: mvn clean package -DskipTests -T 1C
 
     - name: Build Docker image
-      run: docker build -t $DOCKER_IMAGE .
+      run: docker build -t backend-credibanco .
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
+    - name: Compress image
+      run: docker save backend-credibanco | gzip > image.tar.gz
+
+    - name: Transfer files to EC2
+      uses: appleboy/scp-action@v1
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        host: ${{ secrets.AWS_EC2_IP }}
+        username: ubuntu
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: "image.tar.gz,docker-compose*.yml,.env"
+        target: "/home/ubuntu/app"
 
-    - name: Push Docker image
-      run: docker push $DOCKER_IMAGE
-
-    - name: Deploy to EC2
+    - name: Deploy on EC2
       uses: appleboy/ssh-action@v1
       with:
         host: ${{ secrets.AWS_EC2_IP }}
         username: ubuntu
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Actualizar variables de entorno
-          echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" > .env
-          echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env
-          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
-          echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
-          
-          # Detener y eliminar contenedores antiguos
-          docker-compose down
-          
-          # Obtener la última imagen
-          docker pull $DOCKER_IMAGE
-          
-          # Iniciar servicios
-          docker-compose up -d
+          cd /home/ubuntu/app
+          docker load -i image.tar.gz
+          docker-compose -f docker-compose-db.yml up -d
+          docker-compose -f docker-compose-app.yml up -d

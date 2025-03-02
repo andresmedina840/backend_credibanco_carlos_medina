@@ -1,13 +1,12 @@
+# docker-compose-app.yml
 services:
   backend:
-    build:
-      context: .
-      args:
-        JAR_FILE: target/*.jar
+    build: .
+    image: backend-credibanco
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql_container_credibanco:3306/${MYSQL_DATABASE}?useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql_container_credibanco:3307/${MYSQL_DATABASE}?useSSL=false
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       JAVA_OPTS: "-XX:MaxRAM=400m -XX:+UseSerialGC -Xss256k"
