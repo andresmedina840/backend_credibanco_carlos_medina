@@ -29,7 +29,7 @@ public class CardController {
 	public ResponseEntity<ApiResponse> generateCardNumber(@PathVariable String productId) {
 		try {
 			String cardNumber = cardService.generateCardNumber(productId);
-			return ResponseEntity.ok(new ApiResponse(0, "Tarjeta generada", cardNumber));
+			return ResponseEntity.ok(new ApiResponse(0, "Tarjeta generadaaaaa", cardNumber));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(new ApiResponse(-1, e.getMessage(), null));
 		}
