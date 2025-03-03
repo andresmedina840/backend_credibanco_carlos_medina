@@ -19,13 +19,12 @@ jobs:
         distribution: 'temurin'
 
     - name: Build with Maven
-      run: mvn clean package -DskipTests -T 1C -Dmaven.compiler.release=21
+      run: mvn clean package -Pproduccion -DskipTests -T 1C -Dmaven.compiler.release=21
 
     - name: Verify build artifacts
       run: |
         ls -l target/credibanco.jar || (echo "❌ ERROR: No se generó el JAR" && exit 1)
-        ls -l docker-compose-db.yml || (echo "❌ ERROR: No se encuentra docker-compose-db.yml" && exit 1)
-        ls -l docker-compose-app.yml || (echo "❌ ERROR: No se encuentra docker-compose-app.yml" && exit 1)
+        ls -l docker-compose.yml || (echo "❌ ERROR: No se encuentra docker-compose.yml de la aplicacion" && exit 1)
         ls -l .env || (echo "❌ ERROR: No se encuentra .env" && exit 1)
 
     - name: Build Docker image
@@ -51,8 +50,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         source: |
           target/credibanco.jar
-          docker-compose-db.yml
-          docker-compose-app.yml
+          docker-compose.yml
           .env
           image.tar.gz
         target: "/home/ubuntu/app"
@@ -67,6 +65,5 @@ jobs:
         script: |
           cd /home/ubuntu/app
           docker load -i image.tar.gz
-          docker-compose -f docker-compose-db.yml up -d
           sleep 20  # Esperar inicialización de MySQL
-          docker-compose -f docker-compose-app.yml up -d
+          docker-compose -f docker-compose.yml up -d
