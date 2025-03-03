@@ -23,10 +23,8 @@ jobs:
 
       - name: 🛠️ Verificar que el JAR se haya generado
         run: |
-          ls -lah target/credibanco.jar || { 
-            echo "❌ ERROR: No se generó el JAR"; 
-            exit 1; 
-          }
+          echo "🔍 Verificando archivos generados por Maven..."
+          ls -lah target/ || { echo "❌ ERROR: No se generó el JAR"; exit 1; }
 
       - name: 🐳 Iniciar Docker
         run: sudo systemctl start docker
@@ -42,17 +40,13 @@ jobs:
       - name: 📦 Guardar imagen Docker como tar.gz
         run: |
           docker save -o image.tar.gz backend-credibanco
-          ls -lah image.tar.gz || { 
-            echo "❌ ERROR: No se generó image.tar.gz"; 
-            exit 1; 
-          }
+          echo "🔍 Verificando que el archivo image.tar.gz existe..."
+          ls -lah image.tar.gz || { echo "❌ ERROR: No se generó image.tar.gz"; exit 1; }
 
       - name: 🔐 Ajustar permisos antes de la transferencia
-        run: chmod 644 target/credibanco.jar docker-compose.yml .env image.tar.gz
-
-      - name: 📂 Verificar archivos antes de la transferencia
         run: |
-          echo "🔍 Archivos en el workspace antes de transferir:"
+          echo "🔐 Ajustando permisos..."
+          chmod 644 target/credibanco.jar docker-compose.yml .env image.tar.gz
           ls -lah target/credibanco.jar docker-compose.yml .env image.tar.gz
 
       - name: 🚀 Transferir archivos al servidor
@@ -73,20 +67,19 @@ jobs:
           command_timeout: 10m
           use_insecure_cipher: false
 
-      - name: 🖥️ Conectar al servidor y verificar archivos
+      - name: 📂 Verificar archivos en el servidor después de la transferencia
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ubuntu/app
-            echo "🔍 Verificando archivos en el servidor..."
-            ls -lah
+            echo "🔍 Archivos en el servidor después de scp-action:"
+            ls -lah /home/ubuntu/app || { echo "❌ ERROR: No se transfirieron los archivos"; exit 1; }
 
             export SPRING_PROFILES_ACTIVE=produccion
 
-            docker load -i image.tar.gz
+            docker load -i /home/ubuntu/app/image.tar.gz
             docker-compose down
             docker-compose up -d --force-recreate
             docker ps
