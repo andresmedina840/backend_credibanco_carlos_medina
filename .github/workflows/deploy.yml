@@ -1,4 +1,4 @@
-name: 🚀 Deploy to EC2 - Debug
+name: 🚀 Deploy to EC2 - Full Solution
 
 on:
   push:
@@ -7,57 +7,57 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       EC2_IP: ${{ secrets.AWS_EC2_IP }}
+      REPO_URL: https://github.com/andresmedina840/backend_credibanco_carlos_medina.git
       SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
-      # ======================
-      # 0. PREPARACIÓN CLAVE SSH
-      # ======================
-      - name: 🔑 Crear archivo clave
+      - name: 🔑 Crear y configurar clave SSH
         run: |
-          echo "🗝️ Creando archivo PEM..."
+          echo "🗝️ Preparando clave PEM..."
           echo "$SSH_KEY" > clave.pem
-          chmod 600 clave.pem  # Permisos críticos
-
-      # ======================
-      # 1. VERIFICACIÓN DE RED
-      # ======================
-      - name: 🌐 Mostrar IP pública del runner
-        run: |
-          echo "🔍 IP Pública del Runner:"
-          curl -s ifconfig.me
-          echo ""
-
-      # ======================
-      # 2. PRUEBA MANUAL SSH
-      # ======================
-      - name: 🧪 Test de conexión manual
-        run: |
-          echo "🔌 Probando conexión SSH..."
-          ssh -vvv -i clave.pem -o StrictHostKeyChecking=no ubuntu@$EC2_IP "echo '✅ OK desde GitHub Runner'"
-
-      # ======================
-      # 3. CONFIGURACIÓN SSH
-      # ======================
-      - name: 🔐 Configurar entorno SSH
-        run: |
+          chmod 600 clave.pem
           mkdir -p ~/.ssh
           ssh-keyscan -H $EC2_IP >> ~/.ssh/known_hosts
 
-      # ======================
-      # 4. DESPLIEGUE CON DEBUG
-      # ======================
-      - name: 🚀 Despliegue con logs detallados
+      - name: 🚀 Ejecutar despliegue completo
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           script: |
-            echo "📅 Hora actual: $(date)"
-            echo "🏠 Directorio actual: $(pwd)"
-            docker ps
-          debug: true  # Logs extendidos
-          timeout: 3m
+            # Crear estructura de directorios
+            sudo mkdir -p /home/ubuntu/app
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/app
+
+            # Clonar/Actualizar repositorio
+            cd /home/ubuntu/app
+            if [ ! -d .git ]; then
+              git clone $REPO_URL .
+            fi
+            
+            # Forzar actualización del código
+            git fetch --all
+            git reset --hard origin/main
+            git clean -fd -x
+            
+            # Reconstruir contenedores
+            docker-compose down -v --remove-orphans
+            docker-compose build --no-cache
+            docker-compose up -d
+            
+            # Verificaciones finales
+            echo "🔍 Estado de los contenedores:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "📜 Últimos logs del backend:"
+            docker-compose logs --tail=50 backend
+          debug: true
+          timeout: 10m
+
+      - name: 🌐 Probar endpoint de la API
+        run: |
+          echo "🩺 Realizando health check..."
+          curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Health check falló"
+        timeout-minutes: 2
