@@ -1,31 +1,60 @@
-name: Deploy Backend Credibanco
+name: 🚀 Deploy to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
+    name: 🚀 Implementar en EC2
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
     steps:
-      - name: "📥 Clonar el repositorio en EC2 y actualizar código"
+      - name: 🔑 Configurar SSH
+        run: |
+          mkdir -p ~/.ssh/
+          chmod 700 ~/.ssh
+          ssh-keyscan -H ${{ secrets.AWS_EC2_IP }} >> ~/.ssh/known_hosts
+          
+      - name: 🛠️ Configurar SSH Agent
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: 🚀 Ejecutar despliegue
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 10m
           script: |
-            echo "📂 Ingresando a la carpeta del proyecto en EC2..."
-            cd /home/ubuntu/app || { echo "❌ ERROR: No se encontró el directorio"; exit 1; }
+            # 1. Navegar al directorio
+            echo "📂 Accediendo al directorio del proyecto..."
+            cd /home/ubuntu/app || exit 1
             
-            echo "🔄 Actualizando el código desde GitHub..."
-            git reset --hard HEAD
-            git pull origin main || { echo "❌ ERROR: No se pudo hacer git pull"; exit 1; }
-
-            echo "📦 Bajando contenedores anteriores..."
-            docker-compose down
-
-            echo "🚀 Construyendo y levantando contenedores..."
-            docker-compose up -d --build
-            docker ps
+            # 2. Actualizar código
+            echo "🔄 Actualizando desde GitHub..."
+            git fetch --all
+            git reset --hard origin/main
+            git clean -fd
+            git pull origin main
+            
+            # 3. Limpiar Docker
+            echo "🧹 Limpiando contenedores anteriores..."
+            docker-compose down -v --remove-orphans --rmi local
+            
+            # 4. Reconstruir y levantar
+            echo "🏗️ Reconstruyendo contenedores..."
+            docker-compose up -d --build --force-recreate
+            
+            # 5. Verificar estado
+            echo "✅ Verificando despliegue..."
+            docker ps -a
+            docker-compose logs -t --tail=20
+            
+            # 6. Limpieza final
+            echo "🧼 Limpiando espacio..."
+            docker system prune -a --force
