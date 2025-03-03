@@ -27,7 +27,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
           echo "🔍 Probando conexión SSH con GitHub..."
-          ssh -T git@github.com || echo "⚠️ Problema con la clave SSH"
+          ssh -T git@github.com || { echo "❌ ERROR: SSH no funciona"; exit 1; }
 
       # ======================
       # 2. DESPLIEGUE PRINCIPAL
