@@ -31,7 +31,12 @@ jobs:
           ssh-keygen -lf clave.pem || echo "⚠️ No se pudo verificar la clave"
 
           echo "🔍 Probando conexión SSH con GitHub..."
-          ssh -T git@github.com || { echo "❌ ERROR: SSH no funciona"; exit 1; }
+          if ssh -T git@github.com 2>&1 | grep -q "Permission denied"; then
+            echo "❌ ERROR: SSH no funciona"
+            exit 1
+          else
+            echo "✅ Conexión SSH con GitHub exitosa"
+          fi
 
       # ======================
       # 2. DESPLIEGUE PRINCIPAL
@@ -48,10 +53,6 @@ jobs:
             sudo mkdir -p /home/ubuntu/mysql_data
             sudo chown -R 999:999 /home/ubuntu/mysql_data
             sudo chown -R ubuntu:ubuntu /home/ubuntu/app
-
-            # Debug: Verificar conectividad SSH antes de clonar
-            echo "🔍 Verificando conexión SSH..."
-            ssh -T git@github.com || { echo "❌ ERROR: SSH no funciona"; exit 1; }
 
             # Clonar repositorio con autenticación SSH
             echo "📥 Clonando repositorio..."
