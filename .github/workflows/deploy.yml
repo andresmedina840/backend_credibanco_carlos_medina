@@ -1,4 +1,4 @@
-name: 🚀 Deploy to EC2 - Full Debug
+name: 🚀 Deploy to EC2 - Debug
 
 on:
   push:
@@ -6,143 +6,58 @@ on:
 
 jobs:
   deploy:
-    name: 🛠️ Implementación en EC2 con Debug
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       EC2_IP: ${{ secrets.AWS_EC2_IP }}
       SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
       # ======================
-      # 1. PREPARACIÓN INICIAL
+      # 0. PREPARACIÓN CLAVE SSH
       # ======================
-      - name: 🔍 Verificar Secrets
+      - name: 🔑 Crear archivo clave
         run: |
-          echo "🛠️ Variables de entorno:"
-          echo "EC2_IP: ${EC2_IP}"
-          echo "Longitud SSH_KEY: $(echo "$SSH_KEY" | wc -c) caracteres"
-          
-          echo "🔑 Parte inicial de la clave:"
-          echo "$SSH_KEY" | head -n 2
-          echo "..." 
+          echo "🗝️ Creando archivo PEM..."
+          echo "$SSH_KEY" > clave.pem
+          chmod 600 clave.pem  # Permisos críticos
 
       # ======================
-      # 2. CONFIGURACIÓN SSH
+      # 1. VERIFICACIÓN DE RED
+      # ======================
+      - name: 🌐 Mostrar IP pública del runner
+        run: |
+          echo "🔍 IP Pública del Runner:"
+          curl -s ifconfig.me
+          echo ""
+
+      # ======================
+      # 2. PRUEBA MANUAL SSH
+      # ======================
+      - name: 🧪 Test de conexión manual
+        run: |
+          echo "🔌 Probando conexión SSH..."
+          ssh -vvv -i clave.pem -o StrictHostKeyChecking=no ubuntu@$EC2_IP "echo '✅ OK desde GitHub Runner'"
+
+      # ======================
+      # 3. CONFIGURACIÓN SSH
       # ======================
       - name: 🔐 Configurar entorno SSH
         run: |
           mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          echo "🔧 Añadiendo huella digital a known_hosts..."
-          ssh-keyscan -H "$EC2_IP" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          
-          echo "📄 Contenido de known_hosts:"
-          cat ~/.ssh/known_hosts
-
-      - name: 🔑 Cargar clave SSH con Agent
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.SSH_PRIVATE_KEY }}
-          
-      # ======================
-      # 3. PRUEBAS DE CONEXIÓN
-      # ======================
-      - name: 🧪 Prueba de conectividad básica
-        run: |
-          echo "📡 Probando conexión a EC2..."
-          ping -c 4 "$EC2_IP"
-          nc -zvw 5 "$EC2_IP" 22
-          echo "⏱️ TTL de la instancia: $(traceroute -m 3 "$EC2_IP" | tail -n 1)"
-
-      - name: 🕵️ Prueba SSH con Debug Completo
-        uses: appleboy/ssh-action@v0.1.6
-        id: ssh-test
-        with:
-          host: ${{ secrets.AWS_EC2_IP }}
-          username: ubuntu
-          port: 22
-          timeout: 2m
-          script: |
-            echo "🔍 Variables de entorno en EC2:"
-            env
-            echo "🔧 Configuración SSH:"
-            sudo sshd -T | grep -E 'authenticationmethods|pubkeyauthentication'
-            echo "📂 Permisos de .ssh:"
-            ls -la ~/.ssh
-            echo "🔑 Contenido de authorized_keys:"
-            cat ~/.ssh/authorized_keys
-          debug: true
+          ssh-keyscan -H $EC2_IP >> ~/.ssh/known_hosts
 
       # ======================
-      # 4. DEPURACIÓN AVANZADA
+      # 4. DESPLIEGUE CON DEBUG
       # ======================
-      - name: 📝 Obtener logs detallados de SSH
-        if: ${{ failure() }}
-        run: |
-          echo "📁 Estructura de .ssh:"
-          ls -la ~/.ssh
-          
-          echo "🔍 Contenido de known_hosts:"
-          cat ~/.ssh/known_hosts
-          
-          echo "📄 Logs de conexión SSH:"
-          cat /tmp/ssh-*.log
-
-      # ======================
-      # 5. DESPLIEGUE PRINCIPAL
-      # ======================
-      - name: 🚀 Ejecutar despliegue completo
+      - name: 🚀 Despliegue con logs detallados
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
-          port: 22
-          timeout: 5m
-          command_timeout: 25m
           script: |
-            set -x  # Activar modo debug
-            
-            # 1. Navegar al directorio
-            echo "📂 Accediendo al directorio..."
-            cd /home/ubuntu/app || { echo "❌ Error al cambiar de directorio"; exit 1; }
-            
-            # 2. Actualizar código
-            echo "🔄 Actualizando desde GitHub..."
-            git stash
-            git fetch --all
-            git reset --hard origin/main
-            git clean -fd
-            git pull origin main || { echo "❌ Falló git pull"; exit 1; }
-            
-            # 3. Limpiar Docker
-            echo "🧹 Limpiando ambiente Docker..."
-            docker-compose down \
-              --volumes \
-              --remove-orphans \
-              --rmi local \
-              --timeout 60 || true
-            
-            # 4. Reconstruir servicios
-            echo "🏗️ Reconstruyendo contenedores..."
-            docker-compose up -d \
-              --build \
-              --force-recreate \
-              --remove-orphans \
-              || { echo "❌ Falló docker-compose up"; exit 1; }
-            
-            # 5. Verificar despliegue
-            echo "✅ Verificación final..."
-            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-            docker-compose logs --tail=50 --timestamps
-            
-            # 6. Limpieza inteligente
-            echo "🧼 Optimizando espacio..."
-            docker system prune -a --force --filter "until=24h"
-            
-            echo "🎉 ¡Despliegue exitoso!"
-        env:
-          COMPOSE_DOCKER_CLI_BUILD: 1
-          DOCKER_BUILDKIT: 1
+            echo "📅 Hora actual: $(date)"
+            echo "🏠 Directorio actual: $(pwd)"
+            docker ps
+          debug: true  # Logs extendidos
+          timeout: 3m
