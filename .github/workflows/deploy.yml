@@ -51,7 +51,7 @@ jobs:
         run: chmod 644 target/credibanco.jar docker-compose.yml .env image.tar.gz
 
       - name: 📂 Verificar archivos antes de la transferencia
-        run: ls -lah ./target/credibanco.jar ./docker-compose.yml ./.env ./image.tar.gz
+        run: ls -lah target/credibanco.jar docker-compose.yml .env image.tar.gz
 
       - name: 🚀 Transferir archivos al servidor
         uses: appleboy/scp-action@v0.1.3
@@ -60,13 +60,12 @@ jobs:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: |
-            ./target/credibanco.jar
-            ./docker-compose.yml
-            ./.env
-            ./image.tar.gz
+          source: "target/credibanco.jar docker-compose.yml .env image.tar.gz"
           target: "/home/ubuntu/app"
           overwrite: true
+          timeout: 30s
+          command_timeout: 10m
+          use_insecure_cipher: false
 
       - name: 🖥️ Conectar al servidor y verificar archivos
         uses: appleboy/ssh-action@v0.1.6
