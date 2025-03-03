@@ -47,8 +47,11 @@ jobs:
             exit 1; 
           }
 
+      - name: 🔐 Ajustar permisos antes de la transferencia
+        run: chmod 644 target/credibanco.jar docker-compose.yml .env image.tar.gz
+
       - name: 📂 Verificar archivos antes de la transferencia
-        run: ls -lah target/credibanco.jar docker-compose.yml .env image.tar.gz
+        run: ls -lah ./target/credibanco.jar ./docker-compose.yml ./.env ./image.tar.gz
 
       - name: 🚀 Transferir archivos al servidor
         uses: appleboy/scp-action@v0.1.3
@@ -58,14 +61,14 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: |
-            target/credibanco.jar
-            docker-compose.yml
-            .env
-            image.tar.gz
+            ./target/credibanco.jar
+            ./docker-compose.yml
+            ./.env
+            ./image.tar.gz
           target: "/home/ubuntu/app"
           overwrite: true
 
-      - name: 🖥️ Conectar al servidor y desplegar con perfil de producción
+      - name: 🖥️ Conectar al servidor y verificar archivos
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
@@ -73,11 +76,11 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/ubuntu/app
-            ls -lah  # Verificar archivos en el servidor
-            
-            # Establecer el perfil de producción en el entorno
+            echo "🔍 Verificando archivos en el servidor..."
+            ls -lah
+
             export SPRING_PROFILES_ACTIVE=produccion
-            
+
             docker load -i image.tar.gz
             docker-compose down
             docker-compose up -d --force-recreate
