@@ -26,6 +26,10 @@ jobs:
           ssh-add clave.pem
           mkdir -p ~/.ssh
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+
+          # Debug: Mostrar fingerprint de la clave para verificar si es correcta
+          ssh-keygen -lf clave.pem || echo "⚠️ No se pudo verificar la clave"
+
           echo "🔍 Probando conexión SSH con GitHub..."
           ssh -T git@github.com || { echo "❌ ERROR: SSH no funciona"; exit 1; }
 
