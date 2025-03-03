@@ -22,7 +22,11 @@ jobs:
         run: mvn clean package -DskipTests
 
       - name: 🛠️ Verificar que el JAR se haya generado
-        run: ls -l target/credibanco.jar || (echo "❌ ERROR: No se generó el JAR" && exit 1)
+        run: |
+          ls -l target/credibanco.jar || { 
+            echo "❌ ERROR: No se generó el JAR"; 
+            exit 1; 
+          }
 
       - name: 🐳 Iniciar Docker
         run: sudo systemctl start docker
@@ -30,12 +34,18 @@ jobs:
       - name: 🏗️ Construir imagen Docker
         run: |
           docker build -t backend-credibanco .
-          docker images | grep backend-credibanco || { echo '❌ ERROR: No se generó la imagen Docker'; exit 1; }
+          docker images | grep backend-credibanco || { 
+            echo "❌ ERROR: No se generó la imagen Docker"; 
+            exit 1; 
+          }
 
       - name: 📦 Guardar imagen Docker como tar.gz
         run: |
           docker save -o image.tar.gz backend-credibanco
-          ls -l image.tar.gz || { echo '❌ ERROR: No se generó image.tar.gz'; exit 1; }
+          ls -l image.tar.gz || { 
+            echo "❌ ERROR: No se generó image.tar.gz"; 
+            exit 1; 
+          }
 
       - name: 📂 Verificar archivos antes de la transferencia
         run: ls -l target/credibanco.jar docker-compose.yml .env image.tar.gz
