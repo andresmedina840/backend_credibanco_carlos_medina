@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   backend:
     build: .
@@ -8,18 +10,57 @@ services:
       - .env
     environment:
       SPRING_PROFILES_ACTIVE: produccion
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       JAVA_OPTS: "-XX:MaxRAM=400m -XX:+UseSerialGC -Xss256k"
+    networks:
+      - app-network-credibanco
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 450m
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_container_credibanco
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT_EXTERNO}:${MYSQL_PORT_INTERNO}"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_INNODB_BUFFER_POOL_SIZE: 32M
+      TZ: ${TZ}
+    volumes:
+      - mysql_data_credibanco:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
     networks:
       - app-network-credibanco
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    command:
+      - --max_connections=50
+      - --innodb-flush-method=O_DIRECT
+      - --performance-schema=OFF
+      - --default-time-zone=${TZ}
+
+volumes:
+  mysql_data_credibanco:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/mysql_data
 
 networks:
   app-network-credibanco:
-    external: true
+    driver: bridge

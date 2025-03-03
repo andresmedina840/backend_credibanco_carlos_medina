@@ -1,4 +1,4 @@
-name: 🚀 Deploy to EC2 - Full Solution
+name: 🚀 Deploy Full Stack to EC2
 
 on:
   push:
@@ -7,57 +7,75 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       EC2_IP: ${{ secrets.AWS_EC2_IP }}
       REPO_URL: https://github.com/andresmedina840/backend_credibanco_carlos_medina.git
       SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
-      - name: 🔑 Crear y configurar clave SSH
+      # ======================
+      # 1. CONFIGURACIÓN SSH
+      # ======================
+      - name: 🔐 Configurar acceso SSH
         run: |
-          echo "🗝️ Preparando clave PEM..."
+          echo "🗝️ Preparando entorno seguro..."
           echo "$SSH_KEY" > clave.pem
           chmod 600 clave.pem
           mkdir -p ~/.ssh
           ssh-keyscan -H $EC2_IP >> ~/.ssh/known_hosts
 
-      - name: 🚀 Ejecutar despliegue completo
+      # ======================
+      # 2. DESPLIEGUE PRINCIPAL
+      # ======================
+      - name: 🚀 Desplegar aplicación y base de datos
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           script: |
             # Crear estructura de directorios
-            sudo mkdir -p /home/ubuntu/app
+            sudo mkdir -p /home/ubuntu/app/mysql/conf.d
+            sudo mkdir -p /home/ubuntu/mysql_data
+            sudo chown -R 999:999 /home/ubuntu/mysql_data
             sudo chown -R ubuntu:ubuntu /home/ubuntu/app
 
-            # Clonar/Actualizar repositorio
+            # Clonar/actualizar repositorio
             cd /home/ubuntu/app
-            if [ ! -d .git ]; then
-              git clone $REPO_URL .
-            fi
+            rm -rf .git  # Eliminar conflicto de repos previo
+            git clone $REPO_URL .
             
             # Forzar actualización del código
-            git fetch --all
             git reset --hard origin/main
             git clean -fd -x
             
-            # Reconstruir contenedores
+            # Instalar Docker Compose si no existe
+            if ! command -v docker-compose &> /dev/null; then
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+
+            # Construir y levantar servicios
             docker-compose down -v --remove-orphans
             docker-compose build --no-cache
             docker-compose up -d
-            
-            # Verificaciones finales
-            echo "🔍 Estado de los contenedores:"
-            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-            echo "📜 Últimos logs del backend:"
-            docker-compose logs --tail=50 backend
-          debug: true
-          timeout: 10m
 
-      - name: 🌐 Probar endpoint de la API
+            # Verificación final
+            echo "✅ Estado de los servicios:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "📄 Logs de inicialización:"
+            docker-compose logs --tail=50
+          debug: true
+          timeout: 15m
+
+      # ======================
+      # 3. VERIFICACIÓN POST-DEPLOY
+      # ======================
+      - name: 🩺 Health Check
         run: |
-          echo "🩺 Realizando health check..."
-          curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Health check falló"
-        timeout-minutes: 2
+          echo "🔍 Probando endpoints..."
+          # Esperar 30 segundos para inicialización
+          sleep 30
+          curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Fallo en health check"
+          curl -sSf http://$EC2_IP:8080/api/clientes || echo "⚠️ Fallo en endpoint de clientes"
+        timeout-minutes: 5
