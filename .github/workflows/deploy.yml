@@ -34,48 +34,50 @@ jobs:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           script: |
-            # Crear estructura de directorios
+            # Configuración inicial de directorios
             sudo mkdir -p /home/ubuntu/app/mysql/conf.d
             sudo mkdir -p /home/ubuntu/mysql_data
             sudo chown -R 999:999 /home/ubuntu/mysql_data
             sudo chown -R ubuntu:ubuntu /home/ubuntu/app
 
-            # Clonar/actualizar repositorio
+            # Clonar repositorio
             cd /home/ubuntu/app
-            rm -rf .git  # Eliminar conflicto de repos previo
+            rm -rf ./*  # Limpiar directorio completamente
             git clone $REPO_URL .
             
-            # Forzar actualización del código
-            git reset --hard origin/main
-            git clean -fd -x
+            # Verificar archivos esenciales
+            if [ ! -f docker-compose.yml ] || [ ! -f Dockerfile ]; then
+              echo "❌ ERROR: Archivos esenciales faltantes!"
+              exit 1
+            fi
             
-            # Instalar Docker Compose si no existe
+            # Instalar Docker Compose (versión compatible)
             if ! command -v docker-compose &> /dev/null; then
-              sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
             fi
-
-            # Construir y levantar servicios
+            
+            # Ejecutar despliegue
             docker-compose down -v --remove-orphans
             docker-compose build --no-cache
             docker-compose up -d
-
-            # Verificación final
+            
+            # Verificación extendida
             echo "✅ Estado de los servicios:"
-            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-            echo "📄 Logs de inicialización:"
-            docker-compose logs --tail=50
-          debug: true
-          timeout: 15m
+            docker ps -a
+            echo "🔍 Verificación de red:"
+            docker network inspect app-network-credibanco
+            echo "📄 Logs críticos:"
+            docker-compose logs --tail=100
 
-      # ======================
-      # 3. VERIFICACIÓN POST-DEPLOY
-      # ======================
-      - name: 🩺 Health Check
-        run: |
-          echo "🔍 Probando endpoints..."
-          # Esperar 30 segundos para inicialización
-          sleep 30
-          curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Fallo en health check"
-          curl -sSf http://$EC2_IP:8080/api/clientes || echo "⚠️ Fallo en endpoint de clientes"
-        timeout-minutes: 5
+            # ======================
+            # 3. VERIFICACIÓN POST-DEPLOY
+            # ======================
+            - name: 🩺 Health Check
+              run: |
+                echo "🔍 Probando endpoints..."
+                # Esperar 30 segundos para inicialización
+                sleep 30
+                curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Fallo en health check"
+                curl -sSf http://$EC2_IP:8080/api/clientes || echo "⚠️ Fallo en endpoint de clientes"
+              timeout-minutes: 5
