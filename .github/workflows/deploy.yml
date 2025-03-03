@@ -69,6 +69,9 @@ jobs:
             image.tar.gz
           target: "/home/ubuntu/app"
           overwrite: true
+          timeout: 30s
+          command_timeout: 10m
+          use_insecure_cipher: false
 
       - name: 🖥️ Conectar al servidor y verificar archivos
         uses: appleboy/ssh-action@v0.1.6
