@@ -18,24 +18,31 @@ jobs:
           ssh-keyscan -H ${{ secrets.AWS_EC2_IP }} >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: 🔑 Cargar clave SSH (formato correcto)
+      - name: 🔑 Inyectar clave SSH (formato PEM)
         uses: webfactory/ssh-agent@v0.7.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: |
+            ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: 🚀 Ejecutar despliegue
+      - name: 🧪 Prueba de conexión crítica
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           port: 22
           timeout: 2m
-          command_timeout: 15m
-          # ¡NO incluir el parámetro 'key' aquí!
+          script: echo "🔥 Conexión SSH exitosa"
+          debug: true  # ¡Habilita logs detallados!
+
+      - name: 🚀 Despliegue completo
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.AWS_EC2_IP }}
+          username: ubuntu
+          port: 22
+          timeout: 3m
+          command_timeout: 20m
           script: |
             cd /home/ubuntu/app || exit 1
             git reset --hard origin/main
             docker-compose up -d --build
-        env:
-          COMPOSE_DOCKER_CLI_BUILD: 1
-          DOCKER_BUILDKIT: 1
