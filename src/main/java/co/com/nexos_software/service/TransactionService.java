@@ -8,6 +8,7 @@ import co.com.nexos_software.exception.InvalidTransactionOperationException;
 import co.com.nexos_software.exception.SaldoInsuficienteException;
 import co.com.nexos_software.exception.TarjetVencidaException;
 import co.com.nexos_software.exception.TarjetaBloqueadaException;
+import co.com.nexos_software.exception.TransaccionNoEncontradaException;
 import co.com.nexos_software.repository.CardRepository;
 import co.com.nexos_software.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -26,20 +27,16 @@ public class TransactionService {
 		this.cardRepository = cardRepository;
 	}
 
-	// Procesar compra
 	public String processPurchase(String cardNumber, double amount) {
 		Card card = cardRepository.findById(cardNumber)
 	            .orElseThrow(() -> new CardNotFoundException("Tarjeta no encontrada")); 
 		
-		// ... validaciones
 	    if (!card.isActive()) {
 	        throw new InvalidCardOperationException("Tarjeta inactiva");
 	    }
 
-		// Convertir el monto a BigDecimal
 		BigDecimal amountBigDecimal = BigDecimal.valueOf(amount);
 
-		// Validaciones
 		if (!card.isActive())
 			throw new InvalidCardOperationException("Tarjeta inactiva");
 		if (card.isBlocked())
@@ -50,44 +47,40 @@ public class TransactionService {
 			throw new SaldoInsuficienteException("Saldo insuficiente");
 		}
 
-		// Actualizar saldo usando BigDecimal
-		card.setBalance(card.getBalance().subtract(amountBigDecimal)); // ✅ Método subtract
+		card.setBalance(card.getBalance().subtract(amountBigDecimal));
 		cardRepository.save(card);
 
-		// Crear transacción
+		System.out.println("fdsfds: " + amount);
+		System.out.println("gggg: " + amountBigDecimal);
 		Transaction transaction = Transaction.builder().card(card).amount(amount).timestamp(LocalDateTime.now())
-				.status("APPROVED").build();
+				.status("APROBADA").build();
 		transactionRepository.save(transaction);
 
-		return "Compra exitosa. Número de transacción: " + transaction.getId();
+		return "Compra exitosa por valor de " + transaction.getAmount() + ". Número de transacción: " + transaction.getId();
 	}
 
-	// Anular transacción
 	public String annulTransaction(String cardNumber, Long transactionId) {
 		Transaction transaction = transactionRepository.findById(transactionId)
-				.orElseThrow(() -> new RuntimeException("Transacción no encontrada"));
+				.orElseThrow(() -> new TransaccionNoEncontradaException("Transacción no encontrada"));
 
 		if (!transaction.getCard().getNumber().equals(cardNumber)) {
 	        throw new InvalidTransactionOperationException("La transacción no pertenece a esta tarjeta");
 	    }
 
-		// Convertir el monto a BigDecimal
 		BigDecimal amountBigDecimal = BigDecimal.valueOf(transaction.getAmount());
 
-		// Reembolsar saldo
 		Card card = cardRepository.findById(cardNumber)
 				.orElseThrow(() -> new CardNotFoundException("Tarjeta no encontrada"));
-		card.setBalance(card.getBalance().add(amountBigDecimal)); // ✅ Método add
+		card.setBalance(card.getBalance().add(amountBigDecimal));
 		cardRepository.save(card);
 
-		transaction.setStatus("ANNULLED");
+		transaction.setStatus("ANULADA");
 		transactionRepository.save(transaction);
-		return "Transacción anulada. ID: " + transaction.getId();
+		return "Número " + transaction.getId() + " de Transacción anulada.";
 	}
 
-	// Consultar transacción
 	public Transaction getTransaction(Long transactionId) {
 		return transactionRepository.findById(transactionId)
-				.orElseThrow(() -> new RuntimeException("Transacción no encontrada"));
+				.orElseThrow(() -> new TransaccionNoEncontradaException("Transacción no encontrada"));
 	}
 }

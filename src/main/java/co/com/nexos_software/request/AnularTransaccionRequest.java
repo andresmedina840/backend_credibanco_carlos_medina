@@ -7,9 +7,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @AllArgsConstructor
-public class TransaccionCompraRequest {
+public class AnularTransaccionRequest {
 	
 	private String cardId;
-	private double price;
+	private Long transactionId;
 
 }

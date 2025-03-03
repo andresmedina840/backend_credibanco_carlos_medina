@@ -8,6 +8,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 @Entity
 @Table(name = "card", schema = "credibanco")
 @Data
@@ -28,6 +30,7 @@ public class Card {
     @Column(name = "holder_name", nullable = false, length = 100)
     private String holderName;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy hh:mm:ss a", locale = "es_CO")
     @Column(name = "creation_date", nullable = false, updatable = false)
     private LocalDateTime creationDate;
 
@@ -53,13 +56,11 @@ public class Card {
         this.isBlocked = false;
     }
 
-    // Getter para el formato MM/yyyy (no persistido)
     @Transient
     public String getFormattedExpiryDate() {
         return expiryDate.format(DateTimeFormatter.ofPattern("MM/yyyy"));
     }
 
-    // Setters personalizados para lógica de negocio
     public void setActive(boolean isActive) {
         if (this.isBlocked) {
             throw new IllegalStateException("Tarjeta bloqueada no puede activarse");

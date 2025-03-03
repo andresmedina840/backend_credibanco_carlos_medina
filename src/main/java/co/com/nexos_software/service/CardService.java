@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -18,8 +19,7 @@ public class CardService {
 
 	private final CardRepository cardRepository;
 
-	// Generar tarjeta
-	public String generateCardNumber(String productId) {
+	public Map<String, String> generateCardNumber(String productId) {
 		if (!productId.matches("\\d{6}")) {
 			throw new IllegalArgumentException("Product ID inválido: Debe ser 6 dígitos");
 		}
@@ -35,10 +35,9 @@ public class CardService {
 				.balance(BigDecimal.ZERO).isActive(false).isBlocked(false).build();
 
 		cardRepository.save(newCard);
-		return cardNumber;
+		return Map.of("cardNumber", cardNumber, "holderName", holderName);
 	}
 
-	// Activar tarjeta
 	public void activateCard(String cardNumber) {
 		Card card = cardRepository.findById(cardNumber)
 				.orElseThrow(() -> new CardNotFoundException("Tarjeta no encontrada: " + cardNumber));
@@ -55,7 +54,6 @@ public class CardService {
 		cardRepository.save(card);
 	}
 
-	// Bloquear tarjeta
 	public void blockCard(String cardNumber) {
 		Card card = cardRepository.findById(cardNumber)
 				.orElseThrow(() -> new RuntimeException("Tarjeta no encontrada"));
@@ -68,7 +66,6 @@ public class CardService {
 		cardRepository.save(card);
 	}
 
-	// Recargar saldo
 	public void rechargeBalance(String cardNumber, BigDecimal amount) {
 		if (amount.compareTo(BigDecimal.ZERO) <= 0) {
 			throw new InvalidAmountException("Monto debe ser mayor a 0");
@@ -93,7 +90,6 @@ public class CardService {
 		cardRepository.save(card);
 	}
 
-	// Consultar saldo
 	public BigDecimal getBalance(String cardNumber) {
 		Card card = cardRepository.findById(cardNumber)
 				.orElseThrow(() -> new RuntimeException("Tarjeta no encontrada"));
