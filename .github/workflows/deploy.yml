@@ -25,7 +25,9 @@ jobs:
           eval $(ssh-agent -s)
           ssh-add clave.pem
           mkdir -p ~/.ssh
-          ssh-keyscan -H $EC2_IP >> ~/.ssh/known_hosts
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          echo "🔍 Probando conexión SSH con GitHub..."
+          ssh -T git@github.com || echo "⚠️ Problema con la clave SSH"
 
       # ======================
       # 2. DESPLIEGUE PRINCIPAL
@@ -36,20 +38,24 @@ jobs:
           host: ${{ secrets.AWS_EC2_IP }}
           username: ubuntu
           script: |
-            # Configuración inicial de directorios
+            set -e  # Detener ejecución en caso de error
+            echo "🛠️ Configuración de directorios..."
             sudo mkdir -p /home/ubuntu/app/mysql/conf.d
             sudo mkdir -p /home/ubuntu/mysql_data
             sudo chown -R 999:999 /home/ubuntu/mysql_data
             sudo chown -R ubuntu:ubuntu /home/ubuntu/app
 
+            # Debug: Verificar conectividad SSH antes de clonar
+            echo "🔍 Verificando conexión SSH..."
+            ssh -T git@github.com || { echo "❌ ERROR: SSH no funciona"; exit 1; }
+
             # Clonar repositorio con autenticación SSH
-            if [ ! -d "/home/ubuntu/app/.git" ]; then
-              sudo mkdir -p /home/ubuntu/app
-              sudo chown -R ubuntu:ubuntu /home/ubuntu/app
-              cd /home/ubuntu/app
-              rm -rf /home/ubuntu/app/*
-              git clone $REPO_URL .
-            fi
+            echo "📥 Clonando repositorio..."
+            sudo mkdir -p /home/ubuntu/app
+            sudo chown -R ubuntu:ubuntu /home/ubuntu/app
+            cd /home/ubuntu/app
+            rm -rf /home/ubuntu/app/*
+            GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git clone $REPO_URL /home/ubuntu/app
 
             # Verificar si la clonación fue exitosa
             if [ ! -d "/home/ubuntu/app/.git" ]; then
@@ -63,7 +69,7 @@ jobs:
               exit 1
             fi
 
-            # Instalar Docker Compose (versión compatible)
+            # Instalar Docker Compose
             if ! command -v docker-compose &> /dev/null; then
               sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
