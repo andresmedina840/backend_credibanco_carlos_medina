@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 30
     env:
       EC2_IP: ${{ secrets.AWS_EC2_IP }}
-      REPO_URL: https://github.com/andresmedina840/backend_credibanco_carlos_medina.git
+      REPO_URL: git@github.com:andresmedina840/backend_credibanco_carlos_medina.git
       SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
@@ -22,6 +22,8 @@ jobs:
           echo "🗝️ Preparando entorno seguro..."
           echo "$SSH_KEY" > clave.pem
           chmod 600 clave.pem
+          eval $(ssh-agent -s)
+          ssh-add clave.pem
           mkdir -p ~/.ssh
           ssh-keyscan -H $EC2_IP >> ~/.ssh/known_hosts
 
@@ -40,12 +42,14 @@ jobs:
             sudo chown -R 999:999 /home/ubuntu/mysql_data
             sudo chown -R ubuntu:ubuntu /home/ubuntu/app
 
-            # Clonar repositorio
-            sudo mkdir -p /home/ubuntu/app
-            sudo chown -R ubuntu:ubuntu /home/ubuntu/app
-            cd /home/ubuntu/app
-            rm -rf /home/ubuntu/app/*
-            git clone $REPO_URL /home/ubuntu/app
+            # Clonar repositorio con autenticación SSH
+            if [ ! -d "/home/ubuntu/app/.git" ]; then
+              sudo mkdir -p /home/ubuntu/app
+              sudo chown -R ubuntu:ubuntu /home/ubuntu/app
+              cd /home/ubuntu/app
+              rm -rf /home/ubuntu/app/*
+              git clone $REPO_URL .
+            fi
 
             # Verificar si la clonación fue exitosa
             if [ ! -d "/home/ubuntu/app/.git" ]; then
