@@ -20,17 +20,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🔄 Verificar e instalar Docker y Docker Compose en EC2
-        run: |
-          ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
-            sudo apt update && sudo apt upgrade -y
-            sudo apt install -y docker.io docker-compose git
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            docker --version
-            docker-compose --version
-          EOF
-
       - name: 📥 Actualizar código en EC2 con Git
         run: |
           ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
@@ -47,6 +36,5 @@ jobs:
           ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
             cd /home/ubuntu/backend_credibanco_carlos_medina
             docker-compose down
-            docker-compose pull
             docker-compose up -d --build
           EOF
