@@ -53,10 +53,11 @@ jobs:
 
       - name: 🔍 Verificar que la API responde
         run: |
-          sleep 10  # Espera para dar tiempo a levantar la API
-          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/actuator/health; then
+          sleep 10
+          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/; then
             echo "✅ API funcionando correctamente"
           else
             echo "❌ ERROR: La API no responde"
             exit 1
           fi
+        

@@ -10,7 +10,6 @@ import co.com.nexos_software.response.CreacionTarjetaResponse;
 import co.com.nexos_software.service.CardService;
 import java.math.BigDecimal;
 import java.util.Map;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +29,7 @@ public class CardController {
 		try {
 			Map<String, String> cardData = cardService.generateCardNumber(productId);
 			return ResponseEntity.ok(new CreacionTarjetaResponse(0,
-					"Tarjeta generadaaaaaaaa No. " + cardData.get("cardNumber"), cardData.get("holderName")));
+					"Tarjeta generada No. " + cardData.get("cardNumber"), cardData.get("holderName")));
 
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(new ApiResponse(-1, e.getMessage(), null));
