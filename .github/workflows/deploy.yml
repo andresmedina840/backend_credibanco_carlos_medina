@@ -20,7 +20,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🔄 Actualizar e instalar Docker y Docker Compose en EC2
+      - name: 🔄 Verificar e instalar Docker y Docker Compose en EC2
         run: |
           ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
             sudo apt update && sudo apt upgrade -y
@@ -31,20 +31,17 @@ jobs:
             docker-compose --version
           EOF
 
-      - name: 📤 Subir archivos a EC2
+      - name: 📤 Subir archivos a EC2 en `/home/ubuntu/app/`
         run: |
-          scp docker-compose.yml ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
-          scp Dockerfile ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
-          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_DATABASE=ticketsdb" > /home/ubuntu/.env'
-          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_ROOT_PASSWORD=rootpassword" >> /home/ubuntu/.env'
-          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_USER=ticketdev" >> /home/ubuntu/.env'
-          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_PASSWORD=password" >> /home/ubuntu/.env'
-          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "TZ=America/Bogota" >> /home/ubuntu/.env'
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'mkdir -p /home/ubuntu/app'
+          scp docker-compose.yml ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/app/
+          scp Dockerfile ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/app/
+          scp .env ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/app/
 
       - name: 🚀 Desplegar aplicación en EC2 con Docker Compose
         run: |
           ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/ubuntu
+            cd /home/ubuntu/app
             docker-compose down
             docker-compose pull
             docker-compose up -d --build
@@ -53,7 +50,7 @@ jobs:
       - name: 🔍 Verificar que la API responde
         run: |
           sleep 10  # Espera para dar tiempo a levantar la API
-          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/api/health; then
+          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/actuator/health; then
             echo "✅ API funcionando correctamente"
           else
             echo "❌ ERROR: La API no responde"
