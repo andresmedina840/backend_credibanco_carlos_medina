@@ -1,105 +1,61 @@
-name: 🚀 Deploy Full Stack to EC2
+name: 🚀 Deploy en AWS EC2 con Docker
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main  # Se ejecuta cuando hay un push en la rama main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      EC2_IP: ${{ secrets.AWS_EC2_IP }}
-      REPO_URL: git@github.com:andresmedina840/backend_credibanco_carlos_medina.git
-      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
-      # ======================
-      # 1. CONFIGURACIÓN SSH
-      # ======================
-      - name: 🔐 Configurar acceso SSH
+      - name: 📂 Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: 🔑 Configurar SSH
         run: |
-          echo "🗝️ Preparando entorno seguro..."
-          echo "$SSH_KEY" > clave.pem
-          chmod 600 clave.pem
-          eval $(ssh-agent -s)
-          ssh-add clave.pem
           mkdir -p ~/.ssh
-          ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-          # Debug: Mostrar fingerprint de la clave para verificar si es correcta
-          ssh-keygen -lf clave.pem || echo "⚠️ No se pudo verificar la clave"
-
-          echo "🔍 Probando conexión SSH con GitHub..."
-          if ssh -T git@github.com 2>&1 | grep -q "Permission denied"; then
-            echo "❌ ERROR: SSH no funciona"
-            exit 1
-          else
-            echo "✅ Conexión SSH con GitHub exitosa"
-          fi
-
-      # ======================
-      # 2. DESPLIEGUE PRINCIPAL
-      # ======================
-      - name: 🚀 Desplegar aplicación y base de datos
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.AWS_EC2_IP }}
-          username: ubuntu
-          script: |
-            set -e  # Detener ejecución en caso de error
-            echo "🛠️ Configuración de directorios..."
-            sudo mkdir -p /home/ubuntu/app/mysql/conf.d
-            sudo mkdir -p /home/ubuntu/mysql_data
-            sudo chown -R 999:999 /home/ubuntu/mysql_data
-            sudo chown -R ubuntu:ubuntu /home/ubuntu/app
-
-            # Clonar repositorio con autenticación SSH
-            echo "📥 Clonando repositorio..."
-            sudo mkdir -p /home/ubuntu/app
-            sudo chown -R ubuntu:ubuntu /home/ubuntu/app
-            cd /home/ubuntu/app
-            rm -rf /home/ubuntu/app/*
-            GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git clone $REPO_URL /home/ubuntu/app
-
-            # Verificar si la clonación fue exitosa
-            if [ ! -d "/home/ubuntu/app/.git" ]; then
-              echo "❌ ERROR: Fallo al clonar el repositorio!"
-              exit 1
-            fi
-
-            # Verificar archivos esenciales
-            if [ ! -f /home/ubuntu/app/docker-compose.yml ] || [ ! -f /home/ubuntu/app/Dockerfile ]; then
-              echo "❌ ERROR: Archivos esenciales faltantes!"
-              exit 1
-            fi
-
-            # Instalar Docker Compose
-            if ! command -v docker-compose &> /dev/null; then
-              sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-            fi
-
-            # Ejecutar despliegue
-            docker-compose -f /home/ubuntu/app/docker-compose.yml down -v --remove-orphans
-            docker-compose -f /home/ubuntu/app/docker-compose.yml build --no-cache
-            docker-compose -f /home/ubuntu/app/docker-compose.yml up -d
-
-            # Verificación extendida
-            echo "✅ Estado de los servicios:"
-            docker ps -a
-            echo "🔍 Verificación de red:"
-            docker network inspect app-network-credibanco
-            echo "📄 Logs críticos:"
-            docker-compose -f /home/ubuntu/app/docker-compose.yml logs --tail=100
-
-      # ======================
-      # 3. VERIFICACIÓN POST-DEPLOY
-      # ======================
-      - name: 🩺 Health Check
+      - name: 🔄 Actualizar e instalar Docker y Docker Compose en EC2
         run: |
-          echo "🔍 Probando endpoints..."
-          sleep 30
-          curl -sSf http://$EC2_IP:8080/api/health || echo "⚠️ Fallo en health check"
-          curl -sSf http://$EC2_IP:8080/api/clientes || echo "⚠️ Fallo en endpoint de clientes"
-        timeout-minutes: 5
+          ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            sudo apt update && sudo apt upgrade -y
+            sudo apt install -y docker.io docker-compose git
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            docker --version
+            docker-compose --version
+          EOF
+
+      - name: 📤 Subir archivos a EC2
+        run: |
+          scp docker-compose.yml ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
+          scp Dockerfile ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_DATABASE=ticketsdb" > /home/ubuntu/.env'
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_ROOT_PASSWORD=rootpassword" >> /home/ubuntu/.env'
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_USER=ticketdev" >> /home/ubuntu/.env'
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "MYSQL_PASSWORD=password" >> /home/ubuntu/.env'
+          ssh ubuntu@${{ secrets.EC2_HOST }} 'echo "TZ=America/Bogota" >> /home/ubuntu/.env'
+
+      - name: 🚀 Desplegar aplicación en EC2 con Docker Compose
+        run: |
+          ssh ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/ubuntu
+            docker-compose down
+            docker-compose pull
+            docker-compose up -d --build
+          EOF
+
+      - name: 🔍 Verificar que la API responde
+        run: |
+          sleep 10  # Espera para dar tiempo a levantar la API
+          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/api/health; then
+            echo "✅ API funcionando correctamente"
+          else
+            echo "❌ ERROR: La API no responde"
+            exit 1
+          fi
