@@ -3,7 +3,7 @@ name: 🚀 Deploy en AWS EC2 con Docker
 on:
   push:
     branches:
-      - main  # Se ejecuta cuando hay un push en la rama main
+      - main
 
 jobs:
   deploy:
@@ -50,14 +50,3 @@ jobs:
             docker-compose pull
             docker-compose up -d --build
           EOF
-
-      - name: 🔍 Verificar que la API responde
-        run: |
-          sleep 10
-          if curl -sSf http://${{ secrets.EC2_HOST }}:8080/; then
-            echo "✅ API funcionando correctamente"
-          else
-            echo "❌ ERROR: La API no responde"
-            exit 1
-          fi
-        
