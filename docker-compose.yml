@@ -27,7 +27,7 @@ services:
     container_name: mysql_container_credibanco
     restart: unless-stopped
     ports:
-      - "${MYSQL_PORT_EXTERNO}:${MYSQL_PORT_INTERNO}"
+      - "3306:3306"
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
